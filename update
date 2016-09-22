@@ -18,12 +18,12 @@ if [ ! -f $tar ] ; then
 	exit 1
 fi
 
-if [ ! -d service-scripts ] ; then
-	echo "No service-scripts dir; is this not a repo?" 1>&2
+if [ ! -d scripts ] ; then
+	echo "No scripts dir; is this not a repo?" 1>&2
 	exit 1
 fi
 
 tar xzfp $tar
-git rm -f -r  lib scripts service-scripts
-mv p3-$vers/{lib,scripts,service-scripts} .
-git add lib scripts service-scripts
+git rm -f -r  lib scripts 
+mv p3-$vers/{lib,scripts} .
+git add lib scripts
