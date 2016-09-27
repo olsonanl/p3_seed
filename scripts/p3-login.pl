@@ -10,6 +10,12 @@ use Term::ReadKey;
 use Data::Dumper;
 use P3DataAPI;
 
+our $have_config_simple;
+eval {
+    require Config::Simple;
+    $have_config_simple = 1;
+};
+
 my $auth_url = "https://user.patricbrc.org/authenticate";
 my $token_path = $P3DataAPI::token_path || "$ENV{HOME}/.patric_token";
 my $max_tries = 3;
@@ -46,6 +52,19 @@ for my $try (1..$max_tries)
 	    print T "$token\n";
 	    chmod 0600, \*T;
 	    close(T);
+
+	    #
+	    # Write to our config files too.
+	    #
+	    if ($have_config_simple)
+	    {
+		write_config("$ENV{HOME}/.patric_config", "P3Client.token", $token, "P3Client.user_id", $un);
+		write_config("$ENV{HOME}/.kbase_config", "authentication.token", $token, "authentication.user_id", $un);
+	    }
+	    else
+	    {
+		warn "Perl library Config::Simple not available; not updating .patric_config or .kbase_config\n";
+	    }
 	    print "Logged in with username $un\n";
 	    exit 0;
 	}
@@ -61,6 +80,22 @@ for my $try (1..$max_tries)
 }
 
 die "Too many incorrect login attempts; exiting.\n";
+
+sub write_config
+{
+    my($file, @pairs) = @_;
+    my $cfg = Config::Simple->new(syntax => 'ini');
+    if (-f $file)
+    {
+	$cfg->read($file);
+    }
+    while (@pairs)
+    {
+	my($key, $val) = splice(@pairs, 0, 2);
+	$cfg->param($key, $val);
+    }
+    $cfg->save($file);
+}
 
 sub get_pass {
     my $key  = 0;
