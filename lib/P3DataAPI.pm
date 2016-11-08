@@ -11,7 +11,6 @@ use gjoseqlib;
 use URI::Escape;
 use Digest::MD5 'md5_hex';
 use Time::HiRes 'gettimeofday';
-use IPC::Run;
 use DBI;
 use HTTP::Request::Common;
 our $have_async;
@@ -25,9 +24,9 @@ use IO::Socket::SSL;
 $IO::Socket::SSL::DEBUG = 0;
 
 IO::Socket::SSL::set_ctx_defaults(
-				       SSL_verifycn_scheme => 'www',
-				       SSL_verify_mode => 0,
-				  );
+                                       SSL_verifycn_scheme => 'www',
+                                       SSL_verify_mode => 0,
+                                  );
 
 no warnings 'once';
 
@@ -37,15 +36,15 @@ our $default_url = $FIG_Config::p3_data_api_url
   || "https://www.patricbrc.org/api";
 
 our %family_field_of_type = (plfam => "plfam_id",
-			     pgfam => "pgfam_id",
-			     figfam => "figfam_id",
-			     fig => "figfam_id",
-			     );
+                             pgfam => "pgfam_id",
+                             figfam => "figfam_id",
+                             fig => "figfam_id",
+                             );
 
 our %sql_fam_to_family_type = (L => "plfam",
-			       G => "pgfam");
+                               G => "pgfam");
 our %family_type_to_sql = (plfam => "L",
-			   pgfam => "G");
+                           pgfam => "G");
 
 our %typemap = (CDS => 'peg');
 
@@ -61,12 +60,12 @@ sub new {
 
     if (!$token)
     {
-	if (open(my $fh, "<", $token_path))
-	{
-	    $token = <$fh>;
-	    chomp $token;
-	    close($fh);
-	}
+        if (open(my $fh, "<", $token_path))
+        {
+            $token = <$fh>;
+            chomp $token;
+            close($fh);
+        }
     }
 
     $url ||= $default_url;
@@ -76,9 +75,9 @@ sub new {
         ua         => LWP::UserAgent->new(),
         token      => $token,
         benchmark  => 0,
-	reference_genome_cache => undef,
-	family_db_dsn => "DBI:mysql:database=fams_2016_0819;host=fir.mcs.anl.gov",
-	family_db_user => 'p3',
+        reference_genome_cache => undef,
+        family_db_dsn => "DBI:mysql:database=fams_2016_0819;host=fir.mcs.anl.gov",
+        family_db_user => 'p3',
     };
 
     return bless $self, $class;
@@ -127,8 +126,8 @@ be used as a wild card.
 
 =item in
 
-Specifies a field name and a string containing a comma-delimited list of matching values enclosed in parentheses. This forms 
-a constraint on the query. It works much like C<eq>, except the constraint is satisfied if the field value matches any one of 
+Specifies a field name and a string containing a comma-delimited list of matching values enclosed in parentheses. This forms
+a constraint on the query. It works much like C<eq>, except the constraint is satisfied if the field value matches any one of
 the specified values. This is the only way to introduce OR-like functionality into the query.
 
 =item sort
@@ -183,9 +182,9 @@ sub query
         #			     Content => $q);
         my $end;
         $start = gettimeofday if $self->{benchmark};
-	# print STDERR "$url?$q\n";
+        # print STDERR "$url?$q\n";
         my $resp = $ua->get( "$url?$q", Accept => "application/json" , $self->auth_header);
-	# print STDERR Dumper($resp);
+        # print STDERR Dumper($resp);
         $end = gettimeofday if $self->{benchmark};
         if ( !$resp->is_success ) {
             my $content = $resp->content || $q;
@@ -195,7 +194,7 @@ sub query
             my $elap = $end - $start;
             print STDERR "$elap\n";
         }
-	# print STDERR $resp->content;
+        # print STDERR $resp->content;
         my $data = decode_json( $resp->content );
         push @result, @$data;
 
@@ -257,9 +256,9 @@ sub query_cb {
         # 	print Dumper($req);
 
         my $resp = $ua->get($qurl,
-			    Accept => "application/json",
-			    $self->auth_header,
-			   );
+                            Accept => "application/json",
+                            $self->auth_header,
+                           );
         if ( !$resp->is_success ) {
             die "Failed: " . $resp->code . "\n" . $resp->content;
         }
@@ -294,29 +293,29 @@ sub solr_query_raw
     my %params;
     while (my($k, $v) = each %$params)
     {
-	if (ref($v) eq 'ARRAY')
-	{
-	    $v = join(",", @$v);
-	}
-	$params{$k} = $v;
+        if (ref($v) eq 'ARRAY')
+        {
+            $v = join(",", @$v);
+        }
+        $params{$k} = $v;
     }
     # $uri->query_form(\%params);
 
     # print STDERR "Query url: $uri\n";
     my $res = $self->ua->post($uri,
-			      \%params,
-			     "Content-type" => "application/solrquery+x-www-form-urlencoded",
-			     "Accept", "application/solr+json",
-			     $self->auth_header,
-			    );
+                              \%params,
+                             "Content-type" => "application/solrquery+x-www-form-urlencoded",
+                             "Accept", "application/solr+json",
+                             $self->auth_header,
+                            );
     if ($res->is_success)
     {
-	my $out = decode_json($res->content);
-	return $out;
+        my $out = decode_json($res->content);
+        return $out;
     }
     else
     {
-	die "Query failed: " . $res->code . " " . $res->content;
+        die "Query failed: " . $res->code . " " . $res->content;
     }
 }
 
@@ -330,61 +329,61 @@ sub solr_query_raw_multi
     my %resmap;
     for my $i (0..$#$queries)
     {
-	my $qry = $queries->[$i];
-	my($core, $params) = @$qry;
-	
-	my $uri = URI->new($self->url . "/$core");
-	
-	my %params = (start => 0, rows => 25000);
-	while (my($k, $v) = each %$params)
-	{
-	    if (ref($v) eq 'ARRAY')
-	    {
-		$v = join(",", @$v);
-	    }
-	    $params{$k} = $v;
-	}
+        my $qry = $queries->[$i];
+        my($core, $params) = @$qry;
 
-	$uri->query_form(\%params);
-	
-	# print STDERR "Query url: $uri\n";
+        my $uri = URI->new($self->url . "/$core");
 
-	my $req = GET($uri,
-		      "Content-type" => "application/solrquery+x-www-form-urlencoded",
-		      "Accept", "application/solr+json",
-		      $self->auth_header);
+        my %params = (start => 0, rows => 25000);
+        while (my($k, $v) = each %$params)
+        {
+            if (ref($v) eq 'ARRAY')
+            {
+                $v = join(",", @$v);
+            }
+            $params{$k} = $v;
+        }
 
-	my $id = $async->add($req);
-	$resmap{$id} = $i;
-	
-	# my $res = $self->ua->get($uri,
-	# 			 "Content-type" => "application/solrquery+x-www-form-urlencoded",
-	# 			 "Accept", "application/solr+json",
-	# 			 $self->auth_header,
-	# 			);
+        $uri->query_form(\%params);
+
+        # print STDERR "Query url: $uri\n";
+
+        my $req = GET($uri,
+                      "Content-type" => "application/solrquery+x-www-form-urlencoded",
+                      "Accept", "application/solr+json",
+                      $self->auth_header);
+
+        my $id = $async->add($req);
+        $resmap{$id} = $i;
+
+        # my $res = $self->ua->get($uri,
+        # 			 "Content-type" => "application/solrquery+x-www-form-urlencoded",
+        # 			 "Accept", "application/solr+json",
+        # 			 $self->auth_header,
+        # 			);
     }
 
     my @out;
     while ($async->not_empty)
     {
-	my($res,$id) = $async->wait_for_next_response();
+        my($res,$id) = $async->wait_for_next_response();
 
-	my $n = $resmap{$id};
-	# print STDERR "Response $id (orig $n) returns\n";
-	
-	if ($res->is_success)
-	{
-	    my $doc = decode_json($res->content);
-	    # print Dumper($res,$doc);
-	    my $resp = $doc->{response};
-	    my $ndocs = @{$resp->{docs}};
+        my $n = $resmap{$id};
+        # print STDERR "Response $id (orig $n) returns\n";
 
-	    $out[$n] = $resp->{docs};
-	}
-	else
-	{
-	    warn "Query failed: " . $res->code . " " . $res->content . "\n" . "error=$Net::HTTPS::NB::HTTPS_ERROR\n";
-	}
+        if ($res->is_success)
+        {
+            my $doc = decode_json($res->content);
+            # print Dumper($res,$doc);
+            my $resp = $doc->{response};
+            my $ndocs = @{$resp->{docs}};
+
+            $out[$n] = $resp->{docs};
+        }
+        else
+        {
+            warn "Query failed: " . $res->code . " " . $res->content . "\n" . "error=$Net::HTTPS::NB::HTTPS_ERROR\n";
+        }
     }
     return @out;
 }
@@ -405,17 +404,17 @@ sub solr_query
     my @out;
     while (1)
     {
-	my $doc = $self->solr_query_raw($core, { %$params, start => $start, rows => $count });
-	ref($doc) eq 'HASH' or die "solr query failed: " . Dumper($doc, $params);
-	my $resp = $doc->{response};
-	my $ndocs = @{$resp->{docs}};
-	$n += $ndocs;
+        my $doc = $self->solr_query_raw($core, { %$params, start => $start, rows => $count });
+        ref($doc) eq 'HASH' or die "solr query failed: " . Dumper($doc, $params);
+        my $resp = $doc->{response};
+        my $ndocs = @{$resp->{docs}};
+        $n += $ndocs;
 
-	# print STDERR "ndocs=$ndocs $n=$n nfound=$resp->{numFound}\n";
-	push(@out, @{$resp->{docs}});
+        # print STDERR "ndocs=$ndocs $n=$n nfound=$resp->{numFound}\n";
+        push(@out, @{$resp->{docs}});
 
-	$start += $ndocs;
-	last if (defined($max_count) && $n >= $max_count) || $n >= $resp->{numFound};
+        $start += $ndocs;
+        last if (defined($max_count) && $n >= $max_count) || $n >= $resp->{numFound};
     }
     return \@out;
 }
@@ -759,23 +758,23 @@ sub compare_regions_for_peg
     my $genome_filter = sub { 1 };
     if ($genome_filter_str eq 'all')
     {
-	print STDERR "$peg all filter\n";
-	$genome_filter = sub {1};
+        print STDERR "$peg all filter\n";
+        $genome_filter = sub {1};
     }
     elsif ($genome_filter_str eq 'representative')
     {
-	print STDERR "$peg rep filter\n";
-	$genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Representative' };
+        print STDERR "$peg rep filter\n";
+        $genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Representative' };
     }
     elsif ($genome_filter_str eq 'reference')
     {
-	print STDERR "$peg ref filter\n";
-	$genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Reference' };
+        print STDERR "$peg ref filter\n";
+        $genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Reference' };
     }
     elsif ($genome_filter_str eq 'representative+reference')
     {
-	print STDERR "$peg repref filter\n";
-	$genome_filter = sub { $self->is_reference_genome($_[0]) ne '' };
+        print STDERR "$peg repref filter\n";
+        $genome_filter = sub { $self->is_reference_genome($_[0]) ne '' };
     }
 
     my @pin = $self->get_pin($peg, $coloring_method, $n_genomes, $genome_filter);
@@ -792,29 +791,29 @@ sub compare_regions_for_peg
 
     for my $pin_row (0..$#pin)
     {
-	my $elt = $pin[$pin_row];
+        my $elt = $pin[$pin_row];
 
 #	my ($left, $right);
 #	($left, $right) = $elt->{strand} eq '+' ? ($elt->{start}, $elt->{end}) : ($elt->{end}, $elt->{start});
 #	my $mid = int(($left + $right) / 2);
 
-	my($ref_b,$ref_e, $ref_sz);
-	if ($elt->{strand} eq '+')
-	{
-	    $ref_b = $elt->{start} + $elt->{match_beg} * 3;
-	    $ref_e = $elt->{start} + $elt->{match_end} * 3;
-	    $ref_sz = $ref_e - $ref_b;
-	}
-	else
-	{
-	    $ref_b = $elt->{start} - $elt->{match_beg} * 3;
-	    $ref_e = $elt->{start} - $elt->{match_end} * 3;
-	    $ref_sz = $ref_b - $ref_e;
-	}
-	my $mid = $ref_e;
+        my($ref_b,$ref_e, $ref_sz);
+        if ($elt->{strand} eq '+')
+        {
+            $ref_b = $elt->{start} + $elt->{match_beg} * 3;
+            $ref_e = $elt->{start} + $elt->{match_end} * 3;
+            $ref_sz = $ref_e - $ref_b;
+        }
+        else
+        {
+            $ref_b = $elt->{start} - $elt->{match_beg} * 3;
+            $ref_e = $elt->{start} - $elt->{match_end} * 3;
+            $ref_sz = $ref_b - $ref_e;
+        }
+        my $mid = $ref_e;
 
-	push(@genes_in_region_request, [$elt->{genome_id}, $elt->{accession}, $mid - $half_width, $mid + $half_width]);
-	push(@length_queries, "(genome_id:\"$elt->{genome_id}\" AND accession:\"$elt->{accession}\")");
+        push(@genes_in_region_request, [$elt->{genome_id}, $elt->{accession}, $mid - $half_width, $mid + $half_width]);
+        push(@length_queries, "(genome_id:\"$elt->{genome_id}\" AND accession:\"$elt->{accession}\")");
     }
     my $lengths = $self->solr_query("genome_sequence", { q => join(" OR ", @length_queries), fl => "genome_id,sequence_id,accession,length" });
     my %contig_lengths;
@@ -827,137 +826,137 @@ sub compare_regions_for_peg
     my @all_fids;
     for my $gir (@genes_in_region_response)
     {
-	my($reg) = @$gir;
-	for my $fent (@$reg)
-	{
-	    push(@all_fids, $fent->{patric_id});
-	}
+        my($reg) = @$gir;
+        for my $fent (@$reg)
+        {
+            push(@all_fids, $fent->{patric_id});
+        }
     }
     my $all_families = $self->family_of_bulk_mysql(\@all_fids);
-    
+
     for my $pin_row (0..$#pin)
     {
-	my $elt = $pin[$pin_row];
+        my $elt = $pin[$pin_row];
 
 #	my ($left, $right);
 #	($left, $right) = $elt->{strand} eq '+' ? ($elt->{start}, $elt->{end}) : ($elt->{end}, $elt->{start});
 #	my $mid = int(($left + $right) / 2);
 
-	my($ref_b,$ref_e, $ref_sz);
-	if ($elt->{strand} eq '+')
-	{
-	    $ref_b = $elt->{start} + $elt->{match_beg} * 3;
-	    $ref_e = $elt->{start} + $elt->{match_end} * 3;
-	    $ref_sz = $ref_e - $ref_b;
-	}
-	else
-	{
-	    $ref_b = $elt->{start} - $elt->{match_beg} * 3;
-	    $ref_e = $elt->{start} - $elt->{match_end} * 3;
-	    $ref_sz = $ref_b - $ref_e;
-	}
-	my $mid = $ref_e;
+        my($ref_b,$ref_e, $ref_sz);
+        if ($elt->{strand} eq '+')
+        {
+            $ref_b = $elt->{start} + $elt->{match_beg} * 3;
+            $ref_e = $elt->{start} + $elt->{match_end} * 3;
+            $ref_sz = $ref_e - $ref_b;
+        }
+        else
+        {
+            $ref_b = $elt->{start} - $elt->{match_beg} * 3;
+            $ref_e = $elt->{start} - $elt->{match_end} * 3;
+            $ref_sz = $ref_b - $ref_e;
+        }
+        my $mid = $ref_e;
 
-	# my($reg, $leftmost, $rightmost) = $self->genes_in_region($elt->{genome_id}, $elt->{accession}, $mid - $half_width, $mid + $half_width);
-	my($reg, $leftmost, $rightmost) = @{$genes_in_region_response[$pin_row]};
-	my $features = [];
+        # my($reg, $leftmost, $rightmost) = $self->genes_in_region($elt->{genome_id}, $elt->{accession}, $mid - $half_width, $mid + $half_width);
+        my($reg, $leftmost, $rightmost) = @{$genes_in_region_response[$pin_row]};
+        my $features = [];
 
 #	my $region_mid = int(($leftmost + $rightmost) / 2) ;
-	
-	print STDERR "Shift: $elt->{patric_id} $elt->{blast_shift}\n";
 
-	my $bfeature = {
-	    fid => "$elt->{patric_id}.BLAST",
-	    type => "blast",
-	    contig => $elt->{accession},
-	    beg => $ref_b,
-	    end => $ref_e,
-	    reference_point => $ref_e,
-	    blast_identity => $elt->{match_iden},
-	    size => $ref_sz,
-	    offset => int(($ref_b + $ref_e) / 2) - $mid,
-	    offset_beg => $ref_b - $mid,
-	    offset_end => $ref_e - $mid,
-	    function => "blast hit for pin",
-	    attributes => [ [ "BLAST identity" => $elt->{match_iden} ] ],
-	};
+        print STDERR "Shift: $elt->{patric_id} $elt->{blast_shift}\n";
 
-
-	for my $fent (@$reg)
-	{
-	    my $size = $fent->{right} - $fent->{left} + 1;
-	    my $offset = $fent->{mid} - $mid;
-	    my $offset_beg = $fent->{start} - $mid;
-	    my $offset_end = $fent->{end} - $mid;
-
-	    my $mapped_type = $typemap{$fent->{feature_type}} // $fent->{feature_type};
-
-	    my $fid = $fent->{patric_id};
-	    
-
-	    my $attrs = [];
-	    for my $fname (sort keys %{$all_families->{$fid}})
-	    {
-		my($fam, $fun) = @{$all_families->{$fid}->{$fname}};
-		my($ital_start, $ital_end) = ("","");
-		if ($fun ne $fent->{product})
-		{
-		    $ital_start = "<i>";
-		    $ital_end = "</i>";
-		}
-		push(@$attrs, [$fname, "$fam: $ital_start$fun$ital_end"]);
-	    }
-	    
-	    my $coloring_val = $all_families->{$fid}->{$coloring_method}->[0];
-
-	    my $feature = {
-		fid => $fid,
-		type => $mapped_type,
-		contig => $elt->{accession},
-		beg => $fent->{start},
-		end => $fent->{end},
-		reference_point => $ref_e,
-		size => $size,
-		strand => $fent->{strand},
-		offset => $offset,
-		offset_beg => $offset_beg,
-		offset_end => $offset_end,
-		function   => $fent->{product},
-		location   => $elt->{accession}."_".$fent->{start}."_".$fent->{end},
-		attributes => $attrs,
-	    };
+        my $bfeature = {
+            fid => "$elt->{patric_id}.BLAST",
+            type => "blast",
+            contig => $elt->{accession},
+            beg => $ref_b,
+            end => $ref_e,
+            reference_point => $ref_e,
+            blast_identity => $elt->{match_iden},
+            size => $ref_sz,
+            offset => int(($ref_b + $ref_e) / 2) - $mid,
+            offset_beg => $ref_b - $mid,
+            offset_end => $ref_e - $mid,
+            function => "blast hit for pin",
+            attributes => [ [ "BLAST identity" => $elt->{match_iden} ] ],
+        };
 
 
-	    if ($fid eq $elt->{patric_id})
-	    {
-		#
-		# this is the pinned peg. Do any special processing here.
-		#
-	       
-		$set_1_fam = $coloring_val if $pin_row == 0;
-		#$set_1_fam = $fent->{$coloring_field} if $pin_row == 0;
-		$feature->{blast_identity} = $elt->{match_iden};
-	    }
+        for my $fent (@$reg)
+        {
+            my $size = $fent->{right} - $fent->{left} + 1;
+            my $offset = $fent->{mid} - $mid;
+            my $offset_beg = $fent->{start} - $mid;
+            my $offset_end = $fent->{end} - $mid;
 
-	    push(@$features, $feature);
-	    push(@all_features, [$fent, $feature, $pin_row, abs($fent->{mid} - $mid)]);
-	}
-	push(@$features, $bfeature);
+            my $mapped_type = $typemap{$fent->{feature_type}} // $fent->{feature_type};
 
-	my $out_ent = {
-	    # beg => $leftmost,
-	    # end => $rightmost,
-	    beg => $mid - $half_width,
-	    end => $mid + $half_width,
-	    mid => $mid,
-	    org_name => "($pin_row) $elt->{genome_name}",
-	    pinned_peg_strand => $elt->{strand},
-	    genome_id => $elt->{genome_id},
-	    pinned_peg => $elt->{patric_id},
-	    features => $features,
-	    contig_length => $contig_lengths{$elt->{genome_id}, $elt->{accession}},
-	};
-	push(@out, $out_ent);
+            my $fid = $fent->{patric_id};
+
+
+            my $attrs = [];
+            for my $fname (sort keys %{$all_families->{$fid}})
+            {
+                my($fam, $fun) = @{$all_families->{$fid}->{$fname}};
+                my($ital_start, $ital_end) = ("","");
+                if ($fun ne $fent->{product})
+                {
+                    $ital_start = "<i>";
+                    $ital_end = "</i>";
+                }
+                push(@$attrs, [$fname, "$fam: $ital_start$fun$ital_end"]);
+            }
+
+            my $coloring_val = $all_families->{$fid}->{$coloring_method}->[0];
+
+            my $feature = {
+                fid => $fid,
+                type => $mapped_type,
+                contig => $elt->{accession},
+                beg => $fent->{start},
+                end => $fent->{end},
+                reference_point => $ref_e,
+                size => $size,
+                strand => $fent->{strand},
+                offset => $offset,
+                offset_beg => $offset_beg,
+                offset_end => $offset_end,
+                function   => $fent->{product},
+                location   => $elt->{accession}."_".$fent->{start}."_".$fent->{end},
+                attributes => $attrs,
+            };
+
+
+            if ($fid eq $elt->{patric_id})
+            {
+                #
+                # this is the pinned peg. Do any special processing here.
+                #
+
+                $set_1_fam = $coloring_val if $pin_row == 0;
+                #$set_1_fam = $fent->{$coloring_field} if $pin_row == 0;
+                $feature->{blast_identity} = $elt->{match_iden};
+            }
+
+            push(@$features, $feature);
+            push(@all_features, [$fent, $feature, $pin_row, abs($fent->{mid} - $mid)]);
+        }
+        push(@$features, $bfeature);
+
+        my $out_ent = {
+            # beg => $leftmost,
+            # end => $rightmost,
+            beg => $mid - $half_width,
+            end => $mid + $half_width,
+            mid => $mid,
+            org_name => "($pin_row) $elt->{genome_name}",
+            pinned_peg_strand => $elt->{strand},
+            genome_id => $elt->{genome_id},
+            pinned_peg => $elt->{patric_id},
+            features => $features,
+            contig_length => $contig_lengths{$elt->{genome_id}, $elt->{accession}},
+        };
+        push(@out, $out_ent);
     }
 
     #
@@ -975,17 +974,17 @@ sub compare_regions_for_peg
     print STDERR join("\t", @{$_->[1]}{qw(fid beg end strand offset)}, $_->[3], $_->[2], @{$_->[0]}{qw(pgfam_id)}), "\n" foreach @sorted_all;
     for my $ent (@sorted_all)
     {
-	# my $fam = $ent->[0]->{$coloring_field};
-	my $fam = $all_families->{$ent->[0]->{patric_id}}->{$coloring_method}->[0];
-	if ($fam)
-	{
-	    my $set = $set{$fam};
-	    if (!$set)
-	    {
-		$set{$fam} = $set = $next_set++;
-	    }
-	    $ent->[1]->{set_number} = $set;
-	}
+        # my $fam = $ent->[0]->{$coloring_field};
+        my $fam = $all_families->{$ent->[0]->{patric_id}}->{$coloring_method}->[0];
+        if ($fam)
+        {
+            my $set = $set{$fam};
+            if (!$set)
+            {
+                $set{$fam} = $set = $next_set++;
+            }
+            $ent->[1]->{set_number} = $set;
+        }
     }
 
     return \@out;
@@ -999,14 +998,14 @@ sub genome_name
     my @list = @$gid_list;
     while (@list)
     {
-	my @chunk = splice(@list, 0, 500);
+        my @chunk = splice(@list, 0, 500);
 
-	my $q = join(" OR ", map { "genome_id:\"$_\"" } @chunk);
-	my $res = $self->solr_query("genome", { q => $q, fl => "genome_id,genome_name,reference_genome" });
-	for my $ent (@$res)
-	{
-	    $out{$ent->{genome_id}} = [$ent->{genome_name}, $ent->{reference_genome}];
-	}
+        my $q = join(" OR ", map { "genome_id:\"$_\"" } @chunk);
+        my $res = $self->solr_query("genome", { q => $q, fl => "genome_id,genome_name,reference_genome" });
+        for my $ent (@$res)
+        {
+            $out{$ent->{genome_id}} = [$ent->{genome_name}, $ent->{reference_genome}];
+        }
     }
     return \%out;
 }
@@ -1025,30 +1024,30 @@ sub genes_in_region
     my $endx = $end + $slop;
 
     my $res = $self->solr_query("genome_feature", { q => "genome_id:$genome AND accession:$contig AND (start:[$begx TO $endx] OR end:[$begx TO $endx]) AND annotation:PATRIC AND NOT feature_type:source",
-							fl => 'start,end,feature_id,product,figfam_id,strand,patric_id,pgfam_id,plfam_id,aa_sequence,genome_name,feature_type',
-						    });
+                                                        fl => 'start,end,feature_id,product,figfam_id,strand,patric_id,pgfam_id,plfam_id,aa_sequence,genome_name,feature_type',
+                                                    });
 
     my @out;
     my $leftmost = 1e12;
     my $rightmost = 0;
     for my $ent (@$res)
     {
-	#
-	# PATRIC stores start/end as left/right. Change to the SEED meaning.aa
-	#
-	my ($left, $right) = @$ent{'start', 'end'};
-	if ($ent->{strand} eq '-')
-	{
-	    $ent->{start} = $right;
-	    $ent->{end} = $left;
-	}
-	my $mid = int(($left + $right) / 2);
-	if ($left <= $end && $right >= $beg)
-	{
-	    $leftmost = $left if $left < $leftmost;
-	    $rightmost = $right if $right > $rightmost;
-	    push(@out, { %$ent, left => $left, right => $right, mid => $mid });
-	}
+        #
+        # PATRIC stores start/end as left/right. Change to the SEED meaning.aa
+        #
+        my ($left, $right) = @$ent{'start', 'end'};
+        if ($ent->{strand} eq '-')
+        {
+            $ent->{start} = $right;
+            $ent->{end} = $left;
+        }
+        my $mid = int(($left + $right) / 2);
+        if ($left <= $end && $right >= $beg)
+        {
+            $leftmost = $left if $left < $leftmost;
+            $rightmost = $right if $right > $rightmost;
+            push(@out, { %$ent, left => $left, right => $right, mid => $mid });
+        }
     }
 
     # print Dumper(\@out);
@@ -1063,20 +1062,20 @@ sub genes_in_region_bulk
 
     for my $req (@$reqlist)
     {
-	my($genome, $contig, $beg, $end) = @$req;
+        my($genome, $contig, $beg, $end) = @$req;
 
-	#
-	# We need to query with some slop because the solr schema currently does
-	# not have left/right coordinates, rather start/end.
-	#
-	
-	my $slop = 5000;
-	my $begx = ($beg > $slop + 1) ? $beg - $slop : 1;
-	my $endx = $end + $slop;
-	
-	push(@queries, ["genome_feature", { q => "genome_id:$genome AND accession:$contig AND (start:[$begx TO $endx] OR end:[$begx TO $endx]) AND annotation:PATRIC AND NOT feature_type:source",
-							fl => 'start,end,feature_id,product,figfam_id,strand,patric_id,pgfam_id,plfam_id,aa_sequence,genome_name,feature_type',
-						    }]);
+        #
+        # We need to query with some slop because the solr schema currently does
+        # not have left/right coordinates, rather start/end.
+        #
+
+        my $slop = 5000;
+        my $begx = ($beg > $slop + 1) ? $beg - $slop : 1;
+        my $endx = $end + $slop;
+
+        push(@queries, ["genome_feature", { q => "genome_id:$genome AND accession:$contig AND (start:[$begx TO $endx] OR end:[$begx TO $endx]) AND annotation:PATRIC AND NOT feature_type:source",
+                                                        fl => 'start,end,feature_id,product,figfam_id,strand,patric_id,pgfam_id,plfam_id,aa_sequence,genome_name,feature_type',
+                                                    }]);
     }
 
     my @replies = $self->solr_query_raw_multi(\@queries);
@@ -1084,43 +1083,43 @@ sub genes_in_region_bulk
 
     for my $i (0..$#$reqlist)
     {
-	my $req = $reqlist->[$i];
-	my $res = $replies[$i];
-	my($genome, $contig, $beg, $end) = @$req;
+        my $req = $reqlist->[$i];
+        my $res = $replies[$i];
+        my($genome, $contig, $beg, $end) = @$req;
 
-	#
-	# We need to query with some slop because the solr schema currently does
-	# not have left/right coordinates, rather start/end.
-	#
-	
-	my $slop = 5000;
-	my $begx = ($beg > $slop + 1) ? $beg - $slop : 1;
-	my $endx = $end + $slop;
-	
-	my @out;
-	my $leftmost = 1e12;
-	my $rightmost = 0;
-	for my $ent (@$res)
-	{
-	    #
-	    # PATRIC stores start/end as left/right. Change to the SEED meaning.aa
-	    #
-	    my ($left, $right) = @$ent{'start', 'end'};
-	    if ($ent->{strand} eq '-')
-	    {
-		$ent->{start} = $right;
-		$ent->{end} = $left;
-	    }
-	    my $mid = int(($left + $right) / 2);
-	    if ($left <= $end && $right >= $beg)
-	    {
-		$leftmost = $left if $left < $leftmost;
-		$rightmost = $right if $right > $rightmost;
-		push(@out, { %$ent, left => $left, right => $right, mid => $mid });
-	    }
-	}
-	my $this_ret = [[ sort { $a->{mid} <=> $b->{mid} } @out ], $leftmost, $rightmost];
-	push(@return, $this_ret);
+        #
+        # We need to query with some slop because the solr schema currently does
+        # not have left/right coordinates, rather start/end.
+        #
+
+        my $slop = 5000;
+        my $begx = ($beg > $slop + 1) ? $beg - $slop : 1;
+        my $endx = $end + $slop;
+
+        my @out;
+        my $leftmost = 1e12;
+        my $rightmost = 0;
+        for my $ent (@$res)
+        {
+            #
+            # PATRIC stores start/end as left/right. Change to the SEED meaning.aa
+            #
+            my ($left, $right) = @$ent{'start', 'end'};
+            if ($ent->{strand} eq '-')
+            {
+                $ent->{start} = $right;
+                $ent->{end} = $left;
+            }
+            my $mid = int(($left + $right) / 2);
+            if ($left <= $end && $right >= $beg)
+            {
+                $leftmost = $left if $left < $leftmost;
+                $rightmost = $right if $right > $rightmost;
+                push(@out, { %$ent, left => $left, right => $right, mid => $mid });
+            }
+        }
+        my $this_ret = [[ sort { $a->{mid} <=> $b->{mid} } @out ], $leftmost, $rightmost];
+        push(@return, $this_ret);
     }
     return @return;
 }
@@ -1138,22 +1137,22 @@ sub get_pin_mysql
     my $type;
     if ($family_type eq 'plfam')
     {
-	$type = 'L';
+        $type = 'L';
     }
     elsif ($family_type eq 'pgfam')
     {
-	$type = 'G';
+        $type = 'G';
     }
     else
     {
-	die "Invalid family type $family_type in get_pin_mysql";
+        die "Invalid family type $family_type in get_pin_mysql";
     }
-    
+
     my $dbh = DBI->connect_cached($self->family_db_dsn, $self->family_db_user);
     my $res = $dbh->selectcol_arrayref(qq(SELECT f2.fid
-					  FROM family_membership f1 JOIN family_membership f2
-					  	ON f1.family_id = f2.family_id
-					  WHERE f1.fid = ? AND f1.type = ? AND f2.type = ?), undef, $fid, $type, $type);
+                                          FROM family_membership f1 JOIN family_membership f2
+                                                  ON f1.family_id = f2.family_id
+                                          WHERE f1.fid = ? AND f1.type = ? AND f2.type = ?), undef, $fid, $type, $type);
 
     #
     # Cut list based on genome.
@@ -1163,10 +1162,10 @@ sub get_pin_mysql
 
     if (@cut_pin == 0)
     {
-	#
-	# No matches for family. Need to reinsert my peg.
-	#
-	push(@cut_pin, $fid);
+        #
+        # No matches for family. Need to reinsert my peg.
+        #
+        push(@cut_pin, $fid);
     }
 
     # my $nb = @$res;
@@ -1180,10 +1179,10 @@ sub get_pin_mysql
     my $sres = [];
     if (@cut_pin)
     {
-	my $fidq = join(" OR ", map { "\"$_\"" } @cut_pin);
-	$sres = $self->solr_query("genome_feature",
-			      { q => "patric_id:($fidq)",
-				    fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
+        my $fidq = join(" OR ", map { "\"$_\"" } @cut_pin);
+        $sres = $self->solr_query("genome_feature",
+                              { q => "patric_id:($fidq)",
+                                    fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
     }
 
     #
@@ -1195,20 +1194,20 @@ sub get_pin_mysql
 
     for my $ent (@$sres)
     {
-	if ($ent->{patric_id} eq $fid)
-	{
-	    $me = $ent;
-	}
-	else
-	{
-	    push(@out, $ent);
-	}
-	my ($left, $right) = @$ent{'start', 'end'};
-	if ($ent->{strand} eq '-')
-	{
-	    $ent->{start} = $right;
-	    $ent->{end} = $left;
-	}
+        if ($ent->{patric_id} eq $fid)
+        {
+            $me = $ent;
+        }
+        else
+        {
+            push(@out, $ent);
+        }
+        my ($left, $right) = @$ent{'start', 'end'};
+        if ($ent->{strand} eq '-')
+        {
+            $ent->{start} = $right;
+            $ent->{end} = $left;
+        }
     }
 
     return ($me, @out);
@@ -1221,21 +1220,21 @@ sub get_pin_p3
     my $fam = $self->family_of($fid, $family_type);
 
     return undef unless $fam;
-    
+
     my $pin = $self->members_of_family($fam, $family_type);
 
     my $me;
     my @cut_pin;
     for my $r (@$pin)
     {
-	if ($r->{patric_id} eq $fid)
-	{
-	    $me = $r;
-	}
-	elsif ($genome_filter->($r->{genome_id}))
-	{
-	    push(@cut_pin, $r);
-	}
+        if ($r->{patric_id} eq $fid)
+        {
+            $me = $r;
+        }
+        elsif ($genome_filter->($r->{genome_id}))
+        {
+            push(@cut_pin, $r);
+        }
     }
     return($me, @cut_pin)
 }
@@ -1266,34 +1265,34 @@ sub get_pin
     my $evalue = "1e-5";
 
     open(my $blast, "-|", "blastall", "-p", "blastp", "-i", "$tmp2", "-d", "$tmp", "-m", 8, "-e", $evalue,
-	 ($max_size ? ("-b", $max_size) : ()))
-	or die "cannot run blastall: $!";
+         ($max_size ? ("-b", $max_size) : ()))
+        or die "cannot run blastall: $!";
     my @out;
     my %seen;
     while (<$blast>)
     {
-	print STDERR $_;
-	chomp;
-	my($id1, $id2, $iden, undef, undef, undef, $b1, $e1, $b2, $e2) = split(/\t/);
-	next if $seen{$id1, $id2}++;
+        print STDERR $_;
+        chomp;
+        my($id1, $id2, $iden, undef, undef, undef, $b1, $e1, $b2, $e2) = split(/\t/);
+        next if $seen{$id1, $id2}++;
 
-	if (!defined($me->{blast_shift}))
-	{
-	    my $shift = 0;
-	    my $match = $cut_pin{$id1};
-	    $me->{blast_shift} = $shift;
-	    $me->{match_beg} = $b1;
-	    $me->{match_end} = $e1;
-	    $me->{match_iden} = 100;
-	}
-	my $shift = ($e1 - $e2) * 3;
-	my $match = $cut_pin{$id2};
-	$match->{blast_shift} = $shift;
-	$match->{match_beg} = $b2;
-	$match->{match_end} = $e2;
-	$match->{match_iden} = $iden;
-	
-	push(@out, $match);
+        if (!defined($me->{blast_shift}))
+        {
+            my $shift = 0;
+            my $match = $cut_pin{$id1};
+            $me->{blast_shift} = $shift;
+            $me->{match_beg} = $b1;
+            $me->{match_end} = $e1;
+            $me->{match_iden} = 100;
+        }
+        my $shift = ($e1 - $e2) * 3;
+        my $match = $cut_pin{$id2};
+        $match->{blast_shift} = $shift;
+        $match->{match_beg} = $b2;
+        $match->{match_end} = $e2;
+        $match->{match_iden} = $iden;
+
+        push(@out, $match);
     }
 #    $#out = $max_size - 1 if $max_size;
     return ($me, @out);
@@ -1308,11 +1307,11 @@ sub family_of
     my $res = $self->solr_query("genome_feature", { q => "patric_id:$fid", fl => $fam_field });
     if (@$res)
     {
-	return $res->[0]->{$fam_field};
+        return $res->[0]->{$fam_field};
     }
     else
     {
-	return undef;
+        return undef;
     }
 }
 
@@ -1321,7 +1320,7 @@ sub family_of_bulk_mysql
     my($self, $fids, $family_types) = @_;
 
     return {} unless @$fids;
-    
+
     my @ftypes = grep { defined $_ } map { $family_type_to_sql{$_} } ($family_types ? @$family_types : ());
 
     my $dbh = DBI->connect_cached($self->family_db_dsn, $self->family_db_user);
@@ -1329,8 +1328,8 @@ sub family_of_bulk_mysql
     my $ftype_qs = join(", ", map { "?" } @ftypes);
     my $ftype_where = @ftypes ? " AND type IN ($ftype_qs)" : "";
     my $res = $dbh->selectall_arrayref(qq(SELECT fm.fid, fm.type, fm.family_id, f.function
-					  FROM family_membership fm JOIN family f ON fm.family_id = f.id AND fm.type = f.type
-					  WHERE fid IN ($qs) $ftype_where), undef, @$fids, @ftypes);
+                                          FROM family_membership fm JOIN family f ON fm.family_id = f.id AND fm.type = f.type
+                                          WHERE fid IN ($qs) $ftype_where), undef, @$fids, @ftypes);
     my $out = {};
     $out->{$_->[0]}->{$sql_fam_to_family_type{$_->[1]}} = [$_->[2], $_->[3]] foreach @$res;
     return $out;
@@ -1339,30 +1338,30 @@ sub family_of_bulk_mysql
 sub search_families
 {
     my($self, $term, $exact) = @_;
-    
+
     my $dbh = DBI->connect_cached($self->family_db_dsn, $self->family_db_user);
 
-    
+
     my @queries = ("f.function = " . $dbh->quote($term));
     if (!$exact)
     {
-	push(@queries,
-	     "f.function LIKE " . $dbh->quote("$term%"),
-	     "f.function LIKE " . $dbh->quote("%$term%"),
-	    );
+        push(@queries,
+             "f.function LIKE " . $dbh->quote("$term%"),
+             "f.function LIKE " . $dbh->quote("%$term%"),
+            );
     }
 
     for my $q (@queries)
     {
-	my $res = $dbh->selectall_arrayref(qq(SELECT f.function, f.id, count(fm.fid)
-					      FROM family f JOIN family_membership fm ON fm.family_id = f.id AND fm.type = f.type
-					      WHERE $q
-					      GROUP BY f.id
-					      ORDER BY count(fm.fid) DESC, f.function, f.type, f.id));
-	if (@$res)
-	{
-	    return $res;
-	}
+        my $res = $dbh->selectall_arrayref(qq(SELECT f.function, f.id, count(fm.fid)
+                                              FROM family f JOIN family_membership fm ON fm.family_id = f.id AND fm.type = f.type
+                                              WHERE $q
+                                              GROUP BY f.id
+                                              ORDER BY count(fm.fid) DESC, f.function, f.type, f.id));
+        if (@$res)
+        {
+            return $res;
+        }
     }
     return undef;
 }
@@ -1370,45 +1369,45 @@ sub search_families
 sub family_function
 {
     my($self, $fams) = @_;
-    
+
     my $dbh = DBI->connect_cached($self->family_db_dsn, $self->family_db_user);
 
     $fams = [$fams] unless ref($fams);
 
     my $qs = join(", ", map { "?" } @$fams);
-    
+
     my $res = $dbh->selectall_arrayref(qq(SELECT id, function
-					  FROM family
-					  WHERE id IN ($qs)),  undef, @$fams);
+                                          FROM family
+                                          WHERE id IN ($qs)),  undef, @$fams);
     return { map { @$_ } @$res };
 }
 
 sub members_of_family_mysql
 {
     my($self, $fam) = @_;
-    
+
     my $dbh = DBI->connect_cached($self->family_db_dsn, $self->family_db_user);
 
     my $res = $dbh->selectcol_arrayref(qq(SELECT fid
-					  FROM family_membership
-					  WHERE family_id = ?
-					  ORDER BY fid), undef, $fam);
+                                          FROM family_membership
+                                          WHERE family_id = ?
+                                          ORDER BY fid), undef, $fam);
     my @out;
     my %genomes;
     for my $fid (@$res)
     {
-	my($g) = $fid =~ /^fig\|(\d+\.\d+)/;
-	$genomes{$g}++;
-	push @out, { fid => $fid, gid => $g };
+        my($g) = $fid =~ /^fig\|(\d+\.\d+)/;
+        $genomes{$g}++;
+        push @out, { fid => $fid, gid => $g };
     }
 
     my $names = $self->genome_name([keys %genomes]);
 
     for my $ent (@out)
     {
-	my $n = $names->{$ent->{gid}};
-	$ent->{genome_name} = $n->[0];
-	$ent->{reference_genome} = $n->[1];
+        my $n = $names->{$ent->{gid}};
+        $ent->{genome_name} = $n->[0];
+        $ent->{reference_genome} = $n->[1];
     }
     return \@out;
 }
@@ -1425,10 +1424,10 @@ sub members_of_family
     #
     for my $ent (@$res)
     {
-	if ($ent->{strand} eq '-')
-	{
-	    ($ent->{start}, $ent->{end}) = ($ent->{end}, $ent->{start});
-	}
+        if ($ent->{strand} eq '-')
+        {
+            ($ent->{start}, $ent->{end}) = ($ent->{end}, $ent->{start});
+        }
     }
     return $res;
 }
@@ -1442,14 +1441,14 @@ sub function_of
     my @list= @$fids;
     while (@list)
     {
-	my @chunk = splice(@list, 0, 500);
+        my @chunk = splice(@list, 0, 500);
 
-	my $fidq = join(" OR ", map { "\"$_\"" } @chunk);
-	# print "$fidq\n";
-	my $sres = $self->solr_query("genome_feature",
-			     { q => "patric_id:($fidq)",
-			       fl => "patric_id,product" });
-	$out{$_->{patric_id}} = $_->{product} foreach @$sres;
+        my $fidq = join(" OR ", map { "\"$_\"" } @chunk);
+        # print "$fidq\n";
+        my $sres = $self->solr_query("genome_feature",
+                             { q => "patric_id:($fidq)",
+                               fl => "patric_id,product" });
+        $out{$_->{patric_id}} = $_->{product} foreach @$sres;
     }
     return \%out;
 }
@@ -1617,10 +1616,10 @@ sub is_reference_genome
     my $cache = $self->reference_genome_cache;
     if (!$cache)
     {
-	$cache = {};
-	my $refs = $self->solr_query("genome", { q => "reference_genome:*", fl => "genome_id,reference_genome,genome_name"});
-	$cache->{$_->{genome_id}} = $_ foreach @$refs;
-	$self->reference_genome_cache($cache);
+        $cache = {};
+        my $refs = $self->solr_query("genome", { q => "reference_genome:*", fl => "genome_id,reference_genome,genome_name"});
+        $cache->{$_->{genome_id}} = $_ foreach @$refs;
+        $self->reference_genome_cache($cache);
     }
 
     return $cache->{$genome}->{reference_genome};
