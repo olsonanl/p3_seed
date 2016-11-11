@@ -1177,37 +1177,41 @@ sub get_pin_mysql
     #
 
     my $sres = [];
-    if (@cut_pin)
-    {
-        my $fidq = join(" OR ", map { "\"$_\"" } @cut_pin);
-        $sres = $self->solr_query("genome_feature",
-                              { q => "patric_id:($fidq)",
-                                    fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
-    }
 
-    #
-    # PATRIC stores start/end as left/right. Change to the SEED meaning.
-    #
-    # die Dumper($sres);
+    my @to_query = @cut_pin;
 
     my($me, @out);
 
-    for my $ent (@$sres)
+    while (@to_query)
     {
-        if ($ent->{patric_id} eq $fid)
-        {
-            $me = $ent;
-        }
-        else
-        {
-            push(@out, $ent);
-        }
-        my ($left, $right) = @$ent{'start', 'end'};
-        if ($ent->{strand} eq '-')
-        {
-            $ent->{start} = $right;
-            $ent->{end} = $left;
-        }
+	my @q = splice(@to_query, 0, 500);
+
+	my $fidq = join(" OR ", map { "\"$_\"" } @q);
+	$sres = $self->solr_query("genome_feature",
+			      { q => "patric_id:($fidq)",
+				    fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
+	#
+	# PATRIC stores start/end as left/right. Change to the SEED meaning.
+	#
+	# die Dumper($sres);
+
+	for my $ent (@$sres)
+	{
+	    if ($ent->{patric_id} eq $fid)
+	    {
+		$me = $ent;
+	    }
+	    else
+	    {
+		push(@out, $ent);
+	    }
+	    my ($left, $right) = @$ent{'start', 'end'};
+	    if ($ent->{strand} eq '-')
+	    {
+		$ent->{start} = $right;
+		$ent->{end} = $left;
+	    }
+	}
     }
 
     return ($me, @out);
