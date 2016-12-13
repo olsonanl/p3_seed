@@ -28,7 +28,7 @@ package ClientThing;
     use POSIX;
     use HTTP::Message;
 
-    use constant AGENT_NAME => "SAS version 1.011";
+    use constant AGENT_NAME => "SAS version 1.013";
 
 =head1 Base Class for Server Helper Objects
 

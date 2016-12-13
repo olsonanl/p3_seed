@@ -53,7 +53,7 @@ our $token_path = "$ENV{HOME}/.patric_token";
 use warnings 'once';
 
 use base 'Class::Accessor';
-__PACKAGE__->mk_accessors(qw(benchmark chunk_size url ua reference_genome_cache family_db_dsn family_db_user) );
+__PACKAGE__->mk_accessors(qw(benchmark chunk_size url ua reference_genome_cache family_db_dsn family_db_user debug) );
 
 sub new {
     my ( $class, $url, $token ) = @_;
@@ -301,6 +301,12 @@ sub solr_query_raw
     }
     # $uri->query_form(\%params);
 
+    my($s, $e);
+    if ($self->debug)
+    {
+	$s = gettimeofday;
+	print STDERR "SQ: $uri " . join(" ", map { "$_ = '$params{$_}'" } sort keys %params), "\n";
+    }
     # print STDERR "Query url: $uri\n";
     my $res = $self->ua->post($uri,
                               \%params,
@@ -308,6 +314,12 @@ sub solr_query_raw
                              "Accept", "application/solr+json",
                              $self->auth_header,
                             );
+    if ($self->debug)
+    {
+	my $e = gettimeofday;
+	my $elap = $e - $s;
+	print STDERR "Done elap=$elap\n";
+    }
     if ($res->is_success)
     {
         my $out = decode_json($res->content);
@@ -375,10 +387,19 @@ sub solr_query_raw_multi
         {
             my $doc = decode_json($res->content);
             # print Dumper($res,$doc);
-            my $resp = $doc->{response};
-            my $ndocs = @{$resp->{docs}};
 
-            $out[$n] = $resp->{docs};
+	    if (ref($doc) eq 'HASH')
+	    {
+		my $resp = $doc->{response};
+		my $ndocs = @{$resp->{docs}};
+
+		$out[$n] = $resp->{docs};
+	    }
+	    else
+	    {
+		$out[$n] = [];
+		print STDERR "Empty response for $n: " . Dumper($doc) . "\n";
+	    }
         }
         else
         {
@@ -745,6 +766,7 @@ sub retrieve_dna_features_in_genomes {
     close($id_map_fh);
 }
 
+
 sub compare_regions_for_peg
 {
     my($self, $peg, $width, $n_genomes, $coloring_method, $genome_filter_str) = @_;
@@ -756,6 +778,7 @@ sub compare_regions_for_peg
 
     $genome_filter_str //= 'representative';
     my $genome_filter = sub { 1 };
+    my $solr_filter;
     if ($genome_filter_str eq 'all')
     {
         print STDERR "$peg all filter\n";
@@ -765,20 +788,24 @@ sub compare_regions_for_peg
     {
         print STDERR "$peg rep filter\n";
         $genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Representative' };
+	$solr_filter = $self->representative_genome_filter();
     }
     elsif ($genome_filter_str eq 'reference')
     {
         print STDERR "$peg ref filter\n";
         $genome_filter = sub { $self->is_reference_genome($_[0]) eq 'Reference' };
+	$solr_filter = $self->reference_genome_filter();
     }
     elsif ($genome_filter_str eq 'representative+reference')
     {
         print STDERR "$peg repref filter\n";
         $genome_filter = sub { $self->is_reference_genome($_[0]) ne '' };
+	$solr_filter = $self->representative_reference_genome_filter();
     }
 
-    my @pin = $self->get_pin($peg, $coloring_method, $n_genomes, $genome_filter);
-
+    my @pin = $self->get_pin($peg, $coloring_method, $n_genomes, $genome_filter, $solr_filter);
+    print STDERR "got pin size=" . scalar(@pin) . "\n";
+    # print STDERR Dumper(\@pin);
     my $half_width = int($width / 2);
 
     my @out;
@@ -823,16 +850,42 @@ sub compare_regions_for_peg
 
     my @genes_in_region_response = $self->genes_in_region_bulk(\@genes_in_region_request);
 
-    my @all_fids;
-    for my $gir (@genes_in_region_response)
+    my $all_families = {};
+
+    if (0)
     {
-        my($reg) = @$gir;
-        for my $fent (@$reg)
-        {
-            push(@all_fids, $fent->{patric_id});
-        }
+	# mysql families
+	my @all_fids;
+	for my $gir (@genes_in_region_response)
+	{
+	    my($reg) = @$gir;
+	    for my $fent (@$reg)
+	    {
+		push(@all_fids, $fent->{patric_id});
+	    }
+	}
+	$all_families = $self->family_of_bulk_mysql(\@all_fids);
     }
-    my $all_families = $self->family_of_bulk_mysql(\@all_fids);
+    else
+    {
+	# p3 families
+
+	for my $gir (@genes_in_region_response)
+	{
+	    my($reg) = @$gir;
+	    for my $fent (@$reg)
+	    {
+		if (my $i = $fent->{pgfam_id})
+		{
+		    $all_families->{$fent->{patric_id}}->{pgfam} = [$i, ''];
+		}
+		if (my $i = $fent->{plfam_id})
+		{
+		    $all_families->{$fent->{patric_id}}->{plfam} = [$i, ''];
+		}
+	    }
+	}
+    }
 
     for my $pin_row (0..$#pin)
     {
@@ -899,12 +952,21 @@ sub compare_regions_for_peg
             {
                 my($fam, $fun) = @{$all_families->{$fid}->{$fname}};
                 my($ital_start, $ital_end) = ("","");
-                if ($fun ne $fent->{product})
-                {
-                    $ital_start = "<i>";
-                    $ital_end = "</i>";
-                }
-                push(@$attrs, [$fname, "$fam: $ital_start$fun$ital_end"]);
+		my $funstr = '';
+		if ($fun)
+		{
+		    if ($fun ne $fent->{product})
+		    {
+			$ital_start = "<i>";
+			$ital_end = "</i>";
+		    }
+		    $funstr = "$fam: $ital_start$fun$ital_end";
+		}
+		else
+		{
+		    $funstr = $fam;
+		}
+                push(@$attrs, [$fname, $funstr]);
             }
 
             my $coloring_val = $all_families->{$fid}->{$coloring_method}->[0];
@@ -1219,13 +1281,13 @@ sub get_pin_mysql
 
 sub get_pin_p3
 {
-    my($self, $fid, $family_type, $max_size, $genome_filter) = @_;
+    my($self, $fid, $family_type, $max_size, $genome_filter, $solr_filter) = @_;
 
     my $fam = $self->family_of($fid, $family_type);
 
     return undef unless $fam;
 
-    my $pin = $self->members_of_family($fam, $family_type);
+    my $pin = $self->members_of_family($fam, $family_type, $solr_filter, $fid);
 
     my $me;
     my @cut_pin;
@@ -1235,7 +1297,7 @@ sub get_pin_p3
         {
             $me = $r;
         }
-        elsif ($genome_filter->($r->{genome_id}))
+        elsif (!ref($genome_filter) || $genome_filter->($r->{genome_id}))
         {
             push(@cut_pin, $r);
         }
@@ -1245,11 +1307,13 @@ sub get_pin_p3
 
 sub get_pin
 {
-    my($self, $fid, $family_type, $max_size, $genome_filter) = @_;
+    my($self, $fid, $family_type, $max_size, $genome_filter, $solr_filter) = @_;
 
-    my($me, @pin) = $self->get_pin_mysql($fid, $family_type, $max_size, $genome_filter);
-    print "me:$me\n";
-    print "\t$_->{genome_id}\n" foreach @pin;
+    my($me, @pin) = $self->get_pin_p3($fid, $family_type, $max_size, $genome_filter, $solr_filter);
+    #my($me, @pin) = $self->get_pin_mysql($fid, $family_type, $max_size, $genome_filter);
+
+    # print "me:$me\n";
+    #  print "\t$_->{genome_id}\n" foreach @pin;
 
     my %cut_pin = map { $_->{patric_id} => $_ } @pin;
 
@@ -1317,6 +1381,39 @@ sub family_of
     {
         return undef;
     }
+}
+
+sub family_of_bulk
+{
+    my($self, $fid_list, $family_type) = @_;
+
+    my $fam_field = $family_field_of_type{lc($family_type)};
+    $fam_field or die "Unknown family type '$family_type'\n";
+
+    my @fids = @$fid_list;
+
+    my $out = {};
+    while (@fids)
+    {
+	my @batch = splice(@fids, 0, 1000);
+
+	my $fidq = join(" OR ", map { "\"$_\"" } @batch);
+
+	my $res = $self->solr_query("genome_feature",
+				{
+				    q => "patric_id:($fidq)",
+				    fl => "patric_id,$fam_field",
+				});
+	if (@$res)
+	{
+	    for my $r (@$res)
+	    {
+		$out->{$r->{patric_id}} = $r->{$fam_field};
+	    }
+	}
+    }
+
+    return $out;
 }
 
 sub family_of_bulk_mysql
@@ -1418,11 +1515,13 @@ sub members_of_family_mysql
 
 sub members_of_family
 {
-    my($self, $fam, $family_type) = @_;
+    my($self, $fam, $family_type, $solr_filter, $fid) = @_;
 
     my $fam_field = $family_field_of_type{lc($family_type)};
     $fam_field or die "Unknown family type '$family_type'\n";
-    my $res = $self->solr_query("genome_feature", { q => "$fam_field:$fam", fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
+
+    my $q = join(" AND ", "$fam_field:$fam", $solr_filter ? "($solr_filter OR patric_id:$fid)" : ());
+    my $res = $self->solr_query("genome_feature", { q => $q, fl => "patric_id,aa_sequence,accession,start,end,genome_id,genome_name,strand" });
     #
     # need to rewrite start/end for neg strand
     #
@@ -1620,13 +1719,59 @@ sub is_reference_genome
     my $cache = $self->reference_genome_cache;
     if (!$cache)
     {
-        $cache = {};
-        my $refs = $self->solr_query("genome", { q => "reference_genome:*", fl => "genome_id,reference_genome,genome_name"});
-        $cache->{$_->{genome_id}} = $_ foreach @$refs;
-        $self->reference_genome_cache($cache);
+	$cache = $self->fill_reference_gene_cache();
     }
 
     return $cache->{$genome}->{reference_genome};
 }
 
+sub representative_reference_genome_filter
+{
+    my($self) = @_;
+
+    my $cache = $self->reference_genome_cache;
+    if (!$cache)
+    {
+	$cache = $self->fill_reference_gene_cache();
+    }
+    my @list = grep { $cache->{$_} ne '' } keys %$cache;
+    return "genome_id:(" . join(" OR ", @list) . ")";
+}
+
+sub representative_genome_filter
+{
+    my($self) = @_;
+
+    my $cache = $self->reference_genome_cache;
+    if (!$cache)
+    {
+	$cache = $self->fill_reference_gene_cache();
+    }
+    my @list = grep { $cache->{$_} eq 'Representative' } keys %$cache;
+    return "genome_id:(" . join(" OR ", @list) . ")";
+}
+
+sub reference_genome_filter
+{
+    my($self) = @_;
+
+    my $cache = $self->reference_genome_cache;
+    if (!$cache)
+    {
+	$cache = $self->fill_reference_gene_cache();
+    }
+    my @list = grep { $cache->{$_} eq 'Reference' } keys %$cache;
+    return "genome_id:(" . join(" OR ", @list) . ")";
+}
+
+sub fill_reference_gene_cache
+{
+    my($self) = @_;
+
+    my $cache = {};
+    my $refs = $self->solr_query("genome", { q => "reference_genome:*", fl => "genome_id,reference_genome,genome_name"});
+    $cache->{$_->{genome_id}} = $_ foreach @$refs;
+    $self->reference_genome_cache($cache);
+    return $cache;
+}
 1;
