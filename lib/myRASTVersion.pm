@@ -6,9 +6,9 @@ sub new
 {
     my($class) = @_;
     my $self = {
-	release => "1.016",
-	package_date => 1484328623,
-	package_date_str => "Jan 13, 2017 11:30:23",
+	release => "1.017",
+	package_date => 1495674780,
+	package_date_str => "May 24, 2017 20:13:00",
     };
     return bless $self, $class;
 }

@@ -2,7 +2,7 @@
 
     p3-get-family-data [options]
 
-This script returns the IDs of all the genomes in the PATRIC database. It supports standard filtering
+This script returns information about each given family. It supports standard filtering
 parameters and the specification of additional columns if desired.
 
 =head2 Parameters
@@ -12,6 +12,23 @@ There are no positional parameters.
 The standard input can be overwritten using the options in L<P3Utils/ih_options>.
 
 Additional command-line options are those given in L<P3Utils/data_options> and L<P3Utils/col_options>.
+
+
+The command-line options are those given in L<P3Utils/data_options>.
+
+The standard query returns several fields, like this:
+
+        p3-echo PLF_445_00009353 -t feature.plfam_id | p3-get-family-data 
+
+        feature.plfam_id    family.family_id    family.family_type  family.family_product
+        PLF_445_00009353    PLF_445_00009353    plfam   hypothetical protein
+        
+You can also peruse
+
+         https://github.com/PATRIC3/patric_solr/blob/master/protein_family_ref/conf/schema.xml
+
+         to gain access to all of the supported fields.  
+
 
 =cut
 
