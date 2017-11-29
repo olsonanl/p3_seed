@@ -88,6 +88,7 @@ sub process_batch
 	{
 	    print_alignment_as_fasta($oh, [$ent->{patric_id}, $ent->{product}, $ent->{$stype}]);
 	}
+	return 1;
     };
 
     $api->query_cb("genome_feature", $cb,

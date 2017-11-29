@@ -23,6 +23,7 @@ $ENV{PATH} .= ":$FIG_Config::bin";
 #       a genome id (implying PubSEED)
 #       rast|JOB\tUSERNAME\tPASSWORD  (implying a RAST job)
 #       kb|g.\d+ implying a CS genome
+#	p3|\d+.\d+ PATRIC genome
 #       rast2|genomeID\tRAST2DIR (I am uncertain of what this does; I would guess
 #            that is specifies a directory and a GTO in the directory
 
