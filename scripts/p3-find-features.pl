@@ -36,6 +36,10 @@ The GI accession number.
 
 The protein sequence MD5 code.
 
+=item product
+
+The functional assignment of the feature. A standard SOLR-type substring match is used.
+
 =back
 
 The standard input can be overridden using the options in L<P3Utils/ih_options>.
@@ -50,6 +54,20 @@ Rather than processing the input, list the valid key names.
 
 =back
 
+=head3 Example
+
+    This command is shown in the tutorial p3_common_tasks.html
+
+    p3-echo coaA | p3-find-features --attr patric_id,product --eq genome_id,210007.7 gene
+
+    p3-echo coaA | p3-find-features --attr patric_id,product gene
+    id  feature.patric_id   feature.product
+    coaA    fig|996634.5.peg.916    Pantothenate kinase (EC 2.7.1.33)
+    coaA    fig|944560.4.peg.377    Pantothenate kinase (EC 2.7.1.33)
+    coaA    fig|992133.3.peg.4201   Pantothenate kinase (EC 2.7.1.33)
+    coaA    fig|992141.3.peg.4166   Pantothenate kinase (EC 2.7.1.33)
+    ...
+
 =cut
 
 use strict;
@@ -57,7 +75,7 @@ use P3DataAPI;
 use P3Utils;
 
 # Common keys are type 2, uncommon type 1. This influences batching.
-use constant KEYS => { gene => 2, gene_id => 1, gi => 1, refseq_locus_tag => 1, protein_id => 2, aa_sequence_md5 => 2 };
+use constant KEYS => { gene => 2, gene_id => 1, gi => 1, refseq_locus_tag => 1, protein_id => 2, aa_sequence_md5 => 2, product => 2 };
 
 # Get the command-line options.
 my $opt = P3Utils::script_opts('keyName', P3Utils::data_options(), P3Utils::col_options(), P3Utils::ih_options(),
@@ -80,8 +98,6 @@ if ($opt->keynames) {
     my ($selectList, $newHeaders) = P3Utils::select_clause(feature => $opt);
     # Compute the filter.
     my $filterList = P3Utils::form_filter($opt);
-    # Insure the feature has a valid ID.
-    push @$filterList, ['eq', 'patric_id', '*'];
     # Open the input file.
     my $ih = P3Utils::ih($opt);
     # Read the incoming headers.

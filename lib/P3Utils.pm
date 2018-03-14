@@ -47,7 +47,8 @@ use constant OBJECTS => {   genome => 'genome',
                             family => 'protein_family_ref',
                             genome_drug => 'genome_amr',
                             contig =>  'genome_sequence',
-                            drug => 'antibiotics', };
+                            drug => 'antibiotics',
+                            taxonomy => 'taxonomy' };
 
 =head3 FIELDS
 
@@ -139,6 +140,11 @@ constraints may be specified by coding the option multiple times.
 Specifies the name of a field that must have a value for the record to be included in the output. Multiple
 fields may be specified by coding the option multiple times.
 
+=item keyword
+
+Specifies a keyword or phrase (in quotes) that should be included in any field of the output. This performs a
+text search against entire records.
+
 =back
 
 =cut
@@ -153,6 +159,7 @@ sub data_options {
             ['ge=s@', 'greater-or-equal search constraint(s) in the form field_name,value'],
             ['ne=s@', 'not-equal search constraint(s) in the form field_name,value'],
             ['in=s@', 'any-value search constraint(s) in the form field_name,value1,value2,...,valueN'],
+            ['keyword=s', 'if specified, a keyword or phrase that shoould be in at least one field of every record'],
             ['required|r=s@', 'field(s) required to have values'],
             delim_options());
 }
@@ -532,6 +539,12 @@ sub form_filter {
         # Apply the constraint.
         push @retVal, ['eq', $field, '*'];
     }
+    # Check for a keyword constraint.
+    my $keyword = $opt->keyword;
+    if ($keyword) {
+        # Apply the constraint.
+        push @retVal, ['keyword', $keyword];
+    }
     # Return the filter clauses.
     return \@retVal;
 }
@@ -691,10 +704,11 @@ sub get_data {
     my @retVal;
     # Convert the object name.
     my $realName = OBJECTS->{$object};
+    my $idCol = IDCOL->{$object};
     # Now we need to form the query modifiers. We start with the column selector. If we're counting, we use the ID column.
     my @selected;
     if (! $cols) {
-        @selected = IDCOL->{$object};
+        @selected = $idCol;
     } else {
         my $computed = _select_list($object, $cols);
         @selected = @$computed;
@@ -704,7 +718,7 @@ sub get_data {
     # no additional filtering.
     if (! $fieldName) {
         my @entries = $p3->query($realName, @mods);
-        _process_entries($object, \@retVal, \@entries, [], $cols);
+        _process_entries($object, \@retVal, \@entries, [], $cols, $idCol);
     } else {
         # Here we need to loop through the couplets one at a time.
         for my $couplet (@$couplets) {
@@ -714,7 +728,7 @@ sub get_data {
             # Make the query.
             my @entries = $p3->query($realName, $keyField, @mods);
             # Process the results.
-            _process_entries($object, \@retVal, \@entries, $row, $cols);
+            _process_entries($object, \@retVal, \@entries, $row, $cols, $idCol);
         }
     }
     # Return the result rows.
@@ -771,7 +785,8 @@ sub get_data_batch {
     my @retVal;
     # Get the real object name and the ID column.
     my $realName = OBJECTS->{$object};
-    $keyField //= IDCOL->{$object};
+    my $idCol = IDCOL->{$object};
+    $keyField //= $idCol;
     # Now we need to form the query modifiers. We start with the column selector. We need to insure the key
     # field is included.
     my @keyList;
@@ -800,7 +815,7 @@ sub get_data_batch {
             my ($key, $row) = @$couplet;
             my $entryList = $entries{$key};
             if ($entryList) {
-                _process_entries($object, \@retVal, $entryList, $row, $cols);
+                _process_entries($object, \@retVal, $entryList, $row, $cols, $idCol);
             }
         }
     }
@@ -855,7 +870,8 @@ sub get_data_keyed {
     my @retVal;
     # Get the real object name and the ID column.
     my $realName = OBJECTS->{$object};
-    $keyField //= IDCOL->{$object};
+    my $idCol = IDCOL->{$object};
+    $keyField //= $idCol;
     # Now we need to form the query modifiers. We start with the column selector. We need to insure the key
     # field is included.
     my @keyList;
@@ -875,7 +891,7 @@ sub get_data_keyed {
         my $keyClause = [in => $keyField, '(' . join(',', @keys) . ')'];
         # Next we run the query and push the output into the return list.
         my @results = $p3->query($realName, $keyClause, @mods);
-        _process_entries($object, \@retVal, \@results, [], $cols);
+        _process_entries($object, \@retVal, \@results, [], $cols, $idCol);
     }
     # Return the result rows.
     return \@retVal;
@@ -1320,7 +1336,7 @@ sub list_object_fields {
 
 =head3 _process_entries
 
-    P3Utils::_process_entries($object, \@retList, \@entries, \@row, \@cols);
+    P3Utils::_process_entries($object, \@retList, \@entries, \@row, \@cols, $id);
 
 Process the specified results from a PATRIC query and store them in the output list.
 
@@ -1346,12 +1362,16 @@ Reference to a list of values to be prefixed to every output row.
 
 Reference to a list of the names of the columns to be put in the output row, or C<undef> if the user wants a count.
 
+=item id (optional)
+
+Name of an ID field that should not be zero or empty. This is used to filter out invalid records.
+
 =back
 
 =cut
 
 sub _process_entries {
-    my ($object, $retList, $entries, $row, $cols) = @_;
+    my ($object, $retList, $entries, $row, $cols, $id) = @_;
     # Are we counting?
     if (! $cols) {
         # Yes. Pop on the count.
@@ -1365,23 +1385,26 @@ sub _process_entries {
             my $reject = 1;
             # The output columns will be put in here.
             my @outCols;
-            # Loop through the columns to create.
-            for my $col (@$cols) {
-                # Get the rule for this column.
-                my $algorithm = $derivedH->{$col} // ['altName', $col];
-                my ($function, @fields) = @$algorithm;
-                my @values = map { $entry->{$_} } @fields;
-                # Verify the values.
-                for (my $i = 0; $i < @values; $i++) {
-                    if (! defined $values[$i]) {
-                        $values[$i] = '';
-                    } else {
-                        $reject = 0;
+            # Automatically reject if there is an invalid ID.
+            if (! $id || $entry->{$id}) {
+                # Loop through the columns to create.
+                for my $col (@$cols) {
+                    # Get the rule for this column.
+                    my $algorithm = $derivedH->{$col} // ['altName', $col];
+                    my ($function, @fields) = @$algorithm;
+                    my @values = map { $entry->{$_} } @fields;
+                    # Verify the values.
+                    for (my $i = 0; $i < @values; $i++) {
+                        if (! defined $values[$i]) {
+                            $values[$i] = '';
+                        } else {
+                            $reject = 0;
+                        }
                     }
+                    # Now we compute the output value.
+                    my $outCol = _apply($function, @values);
+                    push @outCols, $outCol;
                 }
-                # Now we compute the output value.
-                my $outCol = _apply($function, @values);
-                push @outCols, $outCol;
             }
             # Output the record if it is NOT rejected.
             if (! $reject) {
@@ -1482,6 +1505,8 @@ sub _select_list {
             $retVal{$parm} = 1;
         }
     }
+    # Insure we have the ID column.
+    $retVal{IDCOL->{$object}} = 1;
     # Return the fields needed.
     return [sort keys %retVal];
 }
