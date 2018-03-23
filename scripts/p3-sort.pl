@@ -29,6 +29,10 @@ If specified, the output will consist only of the key fields with a count column
 
 If specified, records with at least one empty key field will be discarded.
 
+=item unique
+
+Only include one output line for each key value.
+
 =back
 
 =cut
