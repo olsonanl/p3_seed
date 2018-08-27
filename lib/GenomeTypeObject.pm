@@ -1097,6 +1097,9 @@ sub write_seed_dir
                     };
     $write_md->("GENETIC_CODE", $self->{genetic_code});
     $write_md->("GENOME", $self->{scientific_name});
+
+    #
+    # Taxonomy is supposed to be a string ... (!)
     if (ref($self->{taxonomy}))
     {
 	my @t = @{$self->{taxonomy}};
@@ -1104,6 +1107,12 @@ sub write_seed_dir
 
 	print Dumper(\@t);
 	$write_md->("TAXONOMY", join("; ", @t));
+    }
+    else
+    {
+	my $t = $self->{taxonomy};
+	$t =~ s/^cellular[^;]+;\s+//;
+	$write_md->("TAXONOMY", $t);
     }
     $write_md->("TAXONOMY_ID", $self->{ncbi_taxonomy_id}) if $self->{ncbi_taxonomy_id};
 
@@ -2026,5 +2035,41 @@ sub is_complete {
     }
     return $retVal;
 }
+
+=head3 cripple
+
+    $gto->cripple($removal);
+
+Remove the specified percentage of the features from this genome. This is useful in testing quality metrics.
+
+=over 4
+
+=item removal
+
+The percent of features to remove, from C<0> (none) to C<100> (all).
+
+=back
+
+=cut
+
+sub cripple {
+    my ($self, $removal) = @_;
+    # Get a list of feature IDs.
+    my @fids = map { $_->{id} } @{$self->features};
+    # Compute the number of features to delete.
+    my $undeleted = scalar(@fids);
+    my $deleted = 0;
+    my $deleteSize = int($removal * $undeleted / 100);
+    # Loop until we've filled the delete list.
+    while ($deleted < $deleteSize) {
+        # Pick a random feature to delete.
+        my $i = int(rand($undeleted));
+        my ($removed) = splice @fids, $i, 1;
+        $undeleted--;
+        $deleted++;
+        $self->delete_feature($removed);
+    }
+}
+
 
 1;
